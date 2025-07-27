@@ -93,7 +93,8 @@ var Cell = /** @class */ (function () {
                 this.element.textContent = this.emoji;
                 break;
             case CellType.PUPPY:
-                this.element.textContent = '🐶';
+                // Puppy display will be handled by the puppy object itself
+                this.element.textContent = '';
                 break;
         }
     };
@@ -132,8 +133,8 @@ var Puppy = /** @class */ (function () {
         }
     };
     Puppy.prototype.updateDisplay = function () {
-        var arrows = ['⬆️', '➡️', '⬇️', '⬅️'];
-        this.element.textContent = "".concat(arrows[this.direction], "\uD83D\uDC36");
+        var arrows = ['↑', '→', '↓', '←'];
+        this.element.textContent = "\uD83D\uDC36".concat(arrows[this.direction]);
     };
     return Puppy;
 }());
@@ -245,6 +246,8 @@ var GameBoard = /** @class */ (function () {
                 this.showMessage('Woof! Found food! 🦴');
             }
             currentCell.setType(CellType.PUPPY);
+            // Always show puppy with direction arrow
+            this.updatePuppyDisplay();
         }
     };
     GameBoard.prototype.isValidPosition = function (x, y) {
@@ -294,6 +297,12 @@ var GameBoard = /** @class */ (function () {
         this.puppy = new Puppy(0, 0);
         this.setupLevel();
         this.updateSeedDisplay();
+    };
+    GameBoard.prototype.updatePuppyDisplay = function () {
+        var _a = this.puppy.position, x = _a.x, y = _a.y;
+        var cell = this.cells[y][x];
+        var arrows = ['↑', '→', '↓', '←'];
+        cell.element.textContent = "\uD83D\uDC36".concat(arrows[this.puppy.direction]);
     };
     return GameBoard;
 }());
@@ -542,11 +551,11 @@ var Game = /** @class */ (function () {
                         break;
                     case InstructionType.TURN_LEFT:
                         this.board.puppy.turnLeft();
-                        this.updatePuppyDisplay();
+                        this.board.updatePuppyDisplay();
                         break;
                     case InstructionType.TURN_RIGHT:
                         this.board.puppy.turnRight();
-                        this.updatePuppyDisplay();
+                        this.board.updatePuppyDisplay();
                         break;
                     case InstructionType.JUMP:
                         jumpPos = this.board.puppy.getNextPosition(2);
@@ -561,12 +570,6 @@ var Game = /** @class */ (function () {
                 return [2 /*return*/];
             });
         });
-    };
-    Game.prototype.updatePuppyDisplay = function () {
-        var _a = this.board.puppy.position, x = _a.x, y = _a.y;
-        var cell = this.board.cells[y][x];
-        var arrows = ['⬆️', '➡️', '⬇️', '⬅️'];
-        cell.element.textContent = "".concat(arrows[this.board.puppy.direction], "\uD83D\uDC36");
     };
     Game.prototype.showMessage = function (message) {
         var statusElement = document.getElementById('status-message');

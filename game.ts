@@ -67,7 +67,8 @@ class Cell {
                 this.element.textContent = this.emoji;
                 break;
             case CellType.PUPPY:
-                this.element.textContent = '🐶';
+                // Puppy display will be handled by the puppy object itself
+                this.element.textContent = '';
                 break;
         }
     }
@@ -113,8 +114,8 @@ class Puppy {
     }
 
     private updateDisplay() {
-        const arrows = ['⬆️', '➡️', '⬇️', '⬅️'];
-        this.element.textContent = `${arrows[this.direction]}🐶`;
+        const arrows = ['↑', '→', '↓', '←'];
+        this.element.textContent = `🐶${arrows[this.direction]}`;
     }
 }
 
@@ -255,6 +256,8 @@ class GameBoard {
             }
             
             currentCell.setType(CellType.PUPPY);
+            // Always show puppy with direction arrow
+            this.updatePuppyDisplay();
         }
     }
 
@@ -312,6 +315,13 @@ class GameBoard {
         this.puppy = new Puppy(0, 0);
         this.setupLevel();
         this.updateSeedDisplay();
+    }
+
+    updatePuppyDisplay() {
+        const { x, y } = this.puppy.position;
+        const cell = this.cells[y][x];
+        const arrows = ['↑', '→', '↓', '←'];
+        cell.element.textContent = `🐶${arrows[this.puppy.direction]}`;
     }
 }
 
@@ -571,12 +581,12 @@ class Game {
                 
             case InstructionType.TURN_LEFT:
                 this.board.puppy.turnLeft();
-                this.updatePuppyDisplay();
+                this.board.updatePuppyDisplay();
                 break;
                 
             case InstructionType.TURN_RIGHT:
                 this.board.puppy.turnRight();
-                this.updatePuppyDisplay();
+                this.board.updatePuppyDisplay();
                 break;
                 
             case InstructionType.JUMP:
@@ -590,12 +600,6 @@ class Game {
         }
     }
 
-    private updatePuppyDisplay() {
-        const { x, y } = this.board.puppy.position;
-        const cell = this.board.cells[y][x];
-        const arrows = ['⬆️', '➡️', '⬇️', '⬅️'];
-        cell.element.textContent = `${arrows[this.board.puppy.direction]}🐶`;
-    }
 
     private showMessage(message: string) {
         const statusElement = document.getElementById('status-message')!;
