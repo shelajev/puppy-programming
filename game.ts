@@ -334,7 +334,23 @@ class Instruction {
         const removeBtn = this.element.querySelector('.remove-btn') as HTMLElement;
         removeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.element.remove();
+            // Dispatch custom event to notify Game class
+            const removeEvent = new CustomEvent('remove-instruction', { 
+                detail: { id: this.id },
+                bubbles: true 
+            });
+            this.element.dispatchEvent(removeEvent);
+        });
+
+        // Add drag support for reordering
+        this.element.addEventListener('dragstart', (e: DragEvent) => {
+            e.dataTransfer!.setData('application/x-instruction-id', this.id);
+            e.dataTransfer!.setData('application/x-instruction-type', this.type);
+            this.element.classList.add('dragging');
+        });
+
+        this.element.addEventListener('dragend', () => {
+            this.element.classList.remove('dragging');
         });
     }
 }
@@ -378,23 +394,85 @@ class Game {
 
         programContainer.addEventListener('drop', (e: DragEvent) => {
             e.preventDefault();
-            const instructionType = e.dataTransfer!.getData('text/plain') as InstructionType;
-            this.addInstruction(instructionType);
+            
+            const instructionId = e.dataTransfer!.getData('application/x-instruction-id');
+            const instructionType = e.dataTransfer!.getData('application/x-instruction-type') as InstructionType;
+            const paletteType = e.dataTransfer!.getData('text/plain') as InstructionType;
+            
+            if (instructionId) {
+                // Reordering existing instruction
+                const insertIndex = this.getDropInsertIndex(e, programContainer);
+                this.removeInstructionById(instructionId);
+                this.addInstruction(instructionType, insertIndex > 0 ? insertIndex - 1 : 0);
+            } else if (paletteType) {
+                // Adding new instruction from palette
+                const insertIndex = this.getDropInsertIndex(e, programContainer);
+                this.addInstruction(paletteType, insertIndex);
+            }
+        });
+
+        // Handle remove instruction events
+        programContainer.addEventListener('remove-instruction', (e: CustomEvent) => {
+            this.removeInstructionById(e.detail.id);
         });
     }
 
-    private addInstruction(type: InstructionType) {
+    private addInstruction(type: InstructionType, insertIndex?: number) {
         const instruction = new Instruction(type);
-        this.program.push(instruction);
         
-        const programContainer = document.getElementById('program-container')!;
-        const dropZone = programContainer.querySelector('.drop-zone');
-        
-        if (this.program.length === 1 && dropZone) {
-            dropZone.remove();
+        if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= this.program.length) {
+            this.program.splice(insertIndex, 0, instruction);
+        } else {
+            this.program.push(instruction);
         }
         
-        programContainer.appendChild(instruction.element);
+        this.rebuildProgramDisplay();
+    }
+
+    private rebuildProgramDisplay() {
+        const programContainer = document.getElementById('program-container')!;
+        programContainer.innerHTML = '';
+        
+        if (this.program.length === 0) {
+            programContainer.innerHTML = '<div class="drop-zone">Drop instructions here</div>';
+        } else {
+            this.program.forEach(instruction => {
+                programContainer.appendChild(instruction.element);
+            });
+        }
+    }
+
+    private removeInstructionById(id: string) {
+        const index = this.program.findIndex(instruction => instruction.id === id);
+        if (index !== -1) {
+            this.program.splice(index, 1);
+            this.rebuildProgramDisplay();
+        }
+    }
+
+    private getDropInsertIndex(e: DragEvent, container: HTMLElement): number {
+        const afterElement = this.getDragAfterElement(container, e.clientY);
+        if (afterElement === null) {
+            return this.program.length;
+        } else {
+            const afterInstruction = this.program.find(instruction => instruction.element === afterElement);
+            return afterInstruction ? this.program.indexOf(afterInstruction) : this.program.length;
+        }
+    }
+
+    private getDragAfterElement(container: HTMLElement, y: number): HTMLElement | null {
+        const draggableElements = Array.from(container.querySelectorAll('.program-instruction:not(.dragging)')) as HTMLElement[];
+        
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY, element: null as HTMLElement | null }).element;
     }
 
     private async runProgram() {
