@@ -27,17 +27,31 @@ interface Position {
 class Cell {
     type: CellType;
     element: HTMLElement;
+    private emoji: string;
 
     constructor(type: CellType = CellType.EMPTY) {
         this.type = type;
         this.element = document.createElement('div');
         this.element.className = `cell ${type}`;
+        this.emoji = '';
         this.updateDisplay();
     }
 
     setType(type: CellType) {
         this.type = type;
         this.element.className = `cell ${type}`;
+        
+        // Generate new emoji when type changes (except for puppy)
+        if (type === CellType.OBSTACLE) {
+            const obstacleEmojis = ['🌲', '🌳'];
+            this.emoji = obstacleEmojis[Math.floor(Math.random() * obstacleEmojis.length)];
+        } else if (type === CellType.FOOD) {
+            const foodEmojis = ['🍖', '🍗', '🥓'];
+            this.emoji = foodEmojis[Math.floor(Math.random() * foodEmojis.length)];
+        } else {
+            this.emoji = '';
+        }
+        
         this.updateDisplay();
     }
 
@@ -47,10 +61,10 @@ class Cell {
                 this.element.textContent = '';
                 break;
             case CellType.OBSTACLE:
-                this.element.textContent = '🧱';
+                this.element.textContent = this.emoji;
                 break;
             case CellType.FOOD:
-                this.element.textContent = '🦴';
+                this.element.textContent = this.emoji;
                 break;
             case CellType.PUPPY:
                 this.element.textContent = '🐶';

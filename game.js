@@ -61,11 +61,24 @@ var Cell = /** @class */ (function () {
         this.type = type;
         this.element = document.createElement('div');
         this.element.className = "cell ".concat(type);
+        this.emoji = '';
         this.updateDisplay();
     }
     Cell.prototype.setType = function (type) {
         this.type = type;
         this.element.className = "cell ".concat(type);
+        // Generate new emoji when type changes (except for puppy)
+        if (type === CellType.OBSTACLE) {
+            var obstacleEmojis = ['🌲', '🌳'];
+            this.emoji = obstacleEmojis[Math.floor(Math.random() * obstacleEmojis.length)];
+        }
+        else if (type === CellType.FOOD) {
+            var foodEmojis = ['🍖', '🍗', '🥓'];
+            this.emoji = foodEmojis[Math.floor(Math.random() * foodEmojis.length)];
+        }
+        else {
+            this.emoji = '';
+        }
         this.updateDisplay();
     };
     Cell.prototype.updateDisplay = function () {
@@ -74,10 +87,10 @@ var Cell = /** @class */ (function () {
                 this.element.textContent = '';
                 break;
             case CellType.OBSTACLE:
-                this.element.textContent = '🧱';
+                this.element.textContent = this.emoji;
                 break;
             case CellType.FOOD:
-                this.element.textContent = '🦴';
+                this.element.textContent = this.emoji;
                 break;
             case CellType.PUPPY:
                 this.element.textContent = '🐶';
