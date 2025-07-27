@@ -305,15 +305,22 @@ class Instruction {
     type: InstructionType;
     element: HTMLElement;
     id: string;
+    count: number;
 
-    constructor(type: InstructionType) {
+    constructor(type: InstructionType, count: number = 1) {
         this.type = type;
+        this.count = count;
         this.id = Math.random().toString(36).substr(2, 9);
         this.element = document.createElement('div');
         this.element.className = 'program-instruction';
         this.element.draggable = true;
         this.updateDisplay();
         this.setupEvents();
+    }
+
+    setCount(count: number) {
+        this.count = count;
+        this.updateDisplay();
     }
 
     private updateDisplay() {
@@ -324,10 +331,15 @@ class Instruction {
             [InstructionType.JUMP]: '🦘 Jump'
         };
         
+        const countDisplay = this.count > 1 ? ` ×${this.count}` : '';
+        
         this.element.innerHTML = `
-            ${icons[this.type]}
+            ${icons[this.type]}${countDisplay}
             <button class="remove-btn">×</button>
         `;
+        
+        // Re-setup events after updating innerHTML
+        this.setupEvents();
     }
 
     private setupEvents() {
@@ -351,6 +363,29 @@ class Instruction {
 
         this.element.addEventListener('dragend', () => {
             this.element.classList.remove('dragging');
+        });
+
+        // Add dragover and drop support for multipliers
+        this.element.addEventListener('dragover', (e: DragEvent) => {
+            const hasMultiplier = Array.from(e.dataTransfer!.types).indexOf('application/x-multiplier') !== -1;
+            if (hasMultiplier) {
+                e.preventDefault();
+                this.element.classList.add('multiplier-target');
+            }
+        });
+
+        this.element.addEventListener('dragleave', () => {
+            this.element.classList.remove('multiplier-target');
+        });
+
+        this.element.addEventListener('drop', (e: DragEvent) => {
+            e.preventDefault();
+            this.element.classList.remove('multiplier-target');
+            
+            const multiplierValue = e.dataTransfer!.getData('application/x-multiplier');
+            if (multiplierValue) {
+                this.setCount(parseInt(multiplierValue));
+            }
         });
     }
 }
@@ -379,12 +414,20 @@ class Game {
 
     private setupDragAndDrop() {
         const instructionBlocks = document.querySelectorAll('.instruction-block');
+        const multiplierBlocks = document.querySelectorAll('.multiplier-block');
         const programContainer = document.getElementById('program-container')!;
 
         instructionBlocks.forEach(block => {
             block.addEventListener('dragstart', (e: DragEvent) => {
                 const target = e.target as HTMLElement;
                 e.dataTransfer!.setData('text/plain', target.dataset.instruction!);
+            });
+        });
+
+        multiplierBlocks.forEach(block => {
+            block.addEventListener('dragstart', (e: DragEvent) => {
+                const target = e.target as HTMLElement;
+                e.dataTransfer!.setData('application/x-multiplier', target.dataset.multiplier!);
             });
         });
 
@@ -486,9 +529,15 @@ class Game {
         for (const instruction of this.program) {
             instruction.element.classList.add('executing');
             
-            await this.executeInstruction(instruction.type);
-            await this.delay(800);
+            // Execute instruction multiple times based on count
+            for (let i = 0; i < instruction.count; i++) {
+                await this.executeInstruction(instruction.type);
+                if (i < instruction.count - 1) {
+                    await this.delay(400); // Shorter delay between repeated actions
+                }
+            }
             
+            await this.delay(800);
             instruction.element.classList.remove('executing');
         }
 

@@ -285,8 +285,10 @@ var GameBoard = /** @class */ (function () {
     return GameBoard;
 }());
 var Instruction = /** @class */ (function () {
-    function Instruction(type) {
+    function Instruction(type, count) {
+        if (count === void 0) { count = 1; }
         this.type = type;
+        this.count = count;
         this.id = Math.random().toString(36).substr(2, 9);
         this.element = document.createElement('div');
         this.element.className = 'program-instruction';
@@ -294,6 +296,10 @@ var Instruction = /** @class */ (function () {
         this.updateDisplay();
         this.setupEvents();
     }
+    Instruction.prototype.setCount = function (count) {
+        this.count = count;
+        this.updateDisplay();
+    };
     Instruction.prototype.updateDisplay = function () {
         var _a;
         var icons = (_a = {},
@@ -302,7 +308,10 @@ var Instruction = /** @class */ (function () {
             _a[InstructionType.TURN_RIGHT] = '↻ Turn Right',
             _a[InstructionType.JUMP] = '🦘 Jump',
             _a);
-        this.element.innerHTML = "\n            ".concat(icons[this.type], "\n            <button class=\"remove-btn\">\u00D7</button>\n        ");
+        var countDisplay = this.count > 1 ? " \u00D7".concat(this.count) : '';
+        this.element.innerHTML = "\n            ".concat(icons[this.type]).concat(countDisplay, "\n            <button class=\"remove-btn\">\u00D7</button>\n        ");
+        // Re-setup events after updating innerHTML
+        this.setupEvents();
     };
     Instruction.prototype.setupEvents = function () {
         var _this = this;
@@ -324,6 +333,25 @@ var Instruction = /** @class */ (function () {
         });
         this.element.addEventListener('dragend', function () {
             _this.element.classList.remove('dragging');
+        });
+        // Add dragover and drop support for multipliers
+        this.element.addEventListener('dragover', function (e) {
+            var hasMultiplier = Array.from(e.dataTransfer.types).indexOf('application/x-multiplier') !== -1;
+            if (hasMultiplier) {
+                e.preventDefault();
+                _this.element.classList.add('multiplier-target');
+            }
+        });
+        this.element.addEventListener('dragleave', function () {
+            _this.element.classList.remove('multiplier-target');
+        });
+        this.element.addEventListener('drop', function (e) {
+            e.preventDefault();
+            _this.element.classList.remove('multiplier-target');
+            var multiplierValue = e.dataTransfer.getData('application/x-multiplier');
+            if (multiplierValue) {
+                _this.setCount(parseInt(multiplierValue));
+            }
         });
     };
     return Instruction;
@@ -347,11 +375,18 @@ var Game = /** @class */ (function () {
     Game.prototype.setupDragAndDrop = function () {
         var _this = this;
         var instructionBlocks = document.querySelectorAll('.instruction-block');
+        var multiplierBlocks = document.querySelectorAll('.multiplier-block');
         var programContainer = document.getElementById('program-container');
         instructionBlocks.forEach(function (block) {
             block.addEventListener('dragstart', function (e) {
                 var target = e.target;
                 e.dataTransfer.setData('text/plain', target.dataset.instruction);
+            });
+        });
+        multiplierBlocks.forEach(function (block) {
+            block.addEventListener('dragstart', function (e) {
+                var target = e.target;
+                e.dataTransfer.setData('application/x-multiplier', target.dataset.multiplier);
             });
         });
         programContainer.addEventListener('dragover', function (e) {
@@ -433,7 +468,7 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.runProgram = function () {
         return __awaiter(this, void 0, void 0, function () {
-            var runButton, _i, _a, instruction;
+            var runButton, _i, _a, instruction, i;
             return __generator(this, function (_b) {
                 switch (_b.label) {
                     case 0:
@@ -446,21 +481,33 @@ var Game = /** @class */ (function () {
                         _i = 0, _a = this.program;
                         _b.label = 1;
                     case 1:
-                        if (!(_i < _a.length)) return [3 /*break*/, 5];
+                        if (!(_i < _a.length)) return [3 /*break*/, 9];
                         instruction = _a[_i];
                         instruction.element.classList.add('executing');
-                        return [4 /*yield*/, this.executeInstruction(instruction.type)];
+                        i = 0;
+                        _b.label = 2;
                     case 2:
-                        _b.sent();
-                        return [4 /*yield*/, this.delay(800)];
+                        if (!(i < instruction.count)) return [3 /*break*/, 6];
+                        return [4 /*yield*/, this.executeInstruction(instruction.type)];
                     case 3:
                         _b.sent();
-                        instruction.element.classList.remove('executing');
-                        _b.label = 4;
+                        if (!(i < instruction.count - 1)) return [3 /*break*/, 5];
+                        return [4 /*yield*/, this.delay(400)];
                     case 4:
+                        _b.sent(); // Shorter delay between repeated actions
+                        _b.label = 5;
+                    case 5:
+                        i++;
+                        return [3 /*break*/, 2];
+                    case 6: return [4 /*yield*/, this.delay(800)];
+                    case 7:
+                        _b.sent();
+                        instruction.element.classList.remove('executing');
+                        _b.label = 8;
+                    case 8:
                         _i++;
                         return [3 /*break*/, 1];
-                    case 5:
+                    case 9:
                         this.isRunning = false;
                         runButton.disabled = false;
                         runButton.textContent = '▶ Run Program';

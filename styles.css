@@ -96,6 +96,17 @@ body {
     gap: 10px;
 }
 
+.multiplier-blocks {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.instruction-palette h3:nth-of-type(2) {
+    margin-top: 25px;
+}
+
 .instruction-block {
     padding: 15px;
     background: linear-gradient(45deg, #4facfe, #00f2fe);
@@ -115,6 +126,35 @@ body {
 }
 
 .instruction-block:active {
+    cursor: grabbing;
+    transform: scale(0.95);
+}
+
+.multiplier-block {
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    background: linear-gradient(45deg, #00b894, #00cec9);
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    cursor: grab;
+    user-select: none;
+    font-weight: bold;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.multiplier-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+}
+
+.multiplier-block:active {
     cursor: grabbing;
     transform: scale(0.95);
 }
@@ -153,6 +193,12 @@ body {
 .program-instruction:hover {
     transform: translateX(5px);
     box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+}
+
+.program-instruction.multiplier-target {
+    background: linear-gradient(45deg, #a8edea, #00b894);
+    border: 2px solid #00cec9;
+    transform: scale(1.02);
 }
 
 .program-instruction.executing {
