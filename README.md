@@ -2,6 +2,8 @@
 
 A fun, visual programming game where you help a cute puppy collect food by creating programs using drag-and-drop instructions!
 
+![Puppy Programming Game Preview](preview.png)
+
 ## 🎮 How to Play
 
 ### Objective
@@ -15,6 +17,8 @@ Drag these commands from the left panel to create your program:
 - **↺ Turn Left** - Rotate the puppy 90° counterclockwise  
 - **↻ Turn Right** - Rotate the puppy 90° clockwise
 - **🦘 Jump** - Jump over obstacles (moves 2 steps forward)
+- **🔁 Loop Start** - Marks the beginning of a loop
+- **🔁 Loop End** - Marks the end of a loop
 
 #### Multipliers
 Use these green square tiles to repeat actions:
@@ -89,6 +93,7 @@ npx tsc game.ts --lib es2015,dom
 ### Program Execution
 - Instructions execute sequentially with visual feedback
 - Multipliers repeat the same action multiple times
+- Loops repeat a sequence of instructions.
 - 400ms delay between repeated actions
 - 800ms delay between different instructions
 - Program stops if puppy gets stuck or completes successfully
@@ -96,7 +101,7 @@ npx tsc game.ts --lib es2015,dom
 ## 🏆 Tips for Success
 
 1. **Plan your route** - Study the board layout before programming
-2. **Use multipliers** - Reduce program length with ×2, ×3, etc.
+2. **Use multipliers and loops** - Reduce program length with ×2, ×3, etc. and loops
 3. **Mind the direction** - Remember which way the puppy is facing
 4. **Jump obstacles** - Use the jump command to skip over barriers
 5. **Share levels** - Copy the URL to share interesting level seeds
