@@ -103,8 +103,19 @@ body {
     margin-top: 10px;
 }
 
-.instruction-palette h3:nth-of-type(2) {
+.control-blocks-container {
     margin-top: 25px;
+}
+
+.control-section {
+    margin-bottom: 15px;
+}
+
+.control-section h4 {
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+    font-weight: bold;
 }
 
 .instruction-block {
@@ -159,6 +170,41 @@ body {
     transform: scale(0.95);
 }
 
+.loop-blocks {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.loop-block {
+    width: 50px;
+    height: 40px;
+    padding: 8px;
+    background: linear-gradient(45deg, #f39c12, #f1c40f);
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    cursor: grab;
+    user-select: none;
+    font-weight: bold;
+    font-size: 16px;
+    transition: all 0.3s ease;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loop-block:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+}
+
+.loop-block:active {
+    cursor: grabbing;
+    transform: scale(0.95);
+}
+
 .program-container {
     min-height: 200px;
     border: 3px dashed #bdc3c7;
@@ -199,6 +245,64 @@ body {
     background: linear-gradient(45deg, #a8edea, #00b894);
     border: 2px solid #00cec9;
     transform: scale(1.02);
+}
+
+/* Loop Styling */
+.program-loop {
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.loop-start, .loop-end {
+    background: linear-gradient(45deg, #f39c12, #f1c40f);
+    color: white;
+    padding: 8px 12px;
+    font-weight: bold;
+    font-size: 16px;
+}
+
+.loop-start {
+    border-radius: 8px 8px 0 0;
+}
+
+.loop-end {
+    border-radius: 0 0 8px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.loop-end.multiplier-target {
+    background: linear-gradient(45deg, #e67e22, #d35400);
+    border: 2px solid #f39c12;
+}
+
+.loop-content {
+    background: #fef9e7;
+    border-left: 3px solid #f1c40f;
+    border-right: 3px solid #f1c40f;
+    padding: 8px;
+    min-height: 40px;
+}
+
+.loop-content .program-instruction {
+    margin-left: 15px;
+    background: linear-gradient(45deg, #fff3cd, #ffeaa7);
+}
+
+.loop-drop-zone {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f39c12;
+    font-style: italic;
+    font-size: 0.9em;
+    border: 2px dashed #f1c40f;
+    border-radius: 4px;
+    background: rgba(241, 196, 64, 0.1);
 }
 
 .program-instruction.executing {

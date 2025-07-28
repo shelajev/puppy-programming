@@ -19,6 +19,11 @@ enum InstructionType {
     JUMP = 'jump'
 }
 
+enum ProgramElementType {
+    INSTRUCTION = 'instruction',
+    LOOP = 'loop'
+}
+
 interface Position {
     x: number;
     y: number;
@@ -304,6 +309,30 @@ class GameBoard {
     }
 
     reset() {
+        // Clear puppy from current position first
+        if (this.isValidPosition(this.puppy.position.x, this.puppy.position.y)) {
+            const currentCell = this.cells[this.puppy.position.y][this.puppy.position.x];
+            if (currentCell.type === CellType.PUPPY) {
+                currentCell.setType(CellType.EMPTY);
+            }
+        }
+        
+        // Reset puppy to starting position
+        this.puppy = new Puppy(0, 0);
+        this.placePuppy(0, 0);
+        this.showMessage('Game reset! Ready to play! 🎮');
+    }
+
+    newLevel() {
+        // Generate new seed for a fresh level
+        this.seed = Math.floor(Math.random() * 1000000);
+        this.random = new SeededRandom(this.seed);
+        
+        // Update URL with new seed
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('seed', this.seed.toString());
+        window.history.replaceState({}, '', newUrl);
+        
         // Clear all cells
         for (let y = 0; y < this.height; y++) {
             for (let x = 0; x < this.width; x++) {
@@ -315,6 +344,7 @@ class GameBoard {
         this.puppy = new Puppy(0, 0);
         this.setupLevel();
         this.updateSeedDisplay();
+        this.showMessage('New level generated! 🎲');
     }
 
     updatePuppyDisplay() {
@@ -325,11 +355,19 @@ class GameBoard {
     }
 }
 
-class Instruction {
+interface ProgramElement {
+    id: string;
+    elementType: ProgramElementType;
+    element: HTMLElement;
+    count: number;
+}
+
+class Instruction implements ProgramElement {
     type: InstructionType;
     element: HTMLElement;
     id: string;
     count: number;
+    elementType: ProgramElementType = ProgramElementType.INSTRUCTION;
 
     constructor(type: InstructionType, count: number = 1) {
         this.type = type;
@@ -414,9 +452,170 @@ class Instruction {
     }
 }
 
+class Loop implements ProgramElement {
+    element: HTMLElement;
+    id: string;
+    count: number;
+    elementType: ProgramElementType = ProgramElementType.LOOP;
+    instructions: ProgramElement[];
+    private startElement: HTMLElement;
+    private endElement: HTMLElement;
+    private contentContainer: HTMLElement;
+
+    constructor(count: number = 1) {
+        this.count = count;
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.instructions = [];
+        this.element = document.createElement('div');
+        this.element.className = 'program-loop';
+        this.setupLoop();
+        this.setupEvents();
+    }
+
+    private setupLoop() {
+        this.startElement = document.createElement('div');
+        this.startElement.className = 'loop-start';
+        this.startElement.textContent = '{';
+
+        this.contentContainer = document.createElement('div');
+        this.contentContainer.className = 'loop-content';
+
+        this.endElement = document.createElement('div');
+        this.endElement.className = 'loop-end';
+        this.updateEndDisplay();
+
+        this.element.appendChild(this.startElement);
+        this.element.appendChild(this.contentContainer);
+        this.element.appendChild(this.endElement);
+        
+        // Initialize with empty drop zone
+        this.rebuildContent();
+    }
+
+    setCount(count: number) {
+        this.count = count;
+        this.updateEndDisplay();
+    }
+
+    private updateEndDisplay() {
+        const countDisplay = this.count > 1 ? ` ×${this.count}` : '';
+        this.endElement.textContent = `}${countDisplay}`;
+    }
+
+    addInstruction(instruction: ProgramElement, index?: number) {
+        if (index !== undefined && index >= 0 && index <= this.instructions.length) {
+            this.instructions.splice(index, 0, instruction);
+        } else {
+            this.instructions.push(instruction);
+        }
+        this.rebuildContent();
+    }
+
+    removeInstruction(id: string) {
+        const index = this.instructions.findIndex(inst => inst.id === id);
+        if (index !== -1) {
+            this.instructions.splice(index, 1);
+            this.rebuildContent();
+        }
+    }
+
+    private rebuildContent() {
+        this.contentContainer.innerHTML = '';
+        if (this.instructions.length === 0) {
+            const dropZone = document.createElement('div');
+            dropZone.className = 'loop-drop-zone';
+            dropZone.textContent = 'Drop instructions here';
+            this.contentContainer.appendChild(dropZone);
+        } else {
+            this.instructions.forEach(instruction => {
+                this.contentContainer.appendChild(instruction.element);
+            });
+        }
+        
+        // Re-setup drag and drop for the content container after rebuild
+        this.setupContentEvents();
+    }
+    
+    private setupContentEvents() {
+        // Remove any existing event listeners and re-add them
+        const contentContainer = this.contentContainer;
+        contentContainer.removeEventListener('dragover', this.handleDragOver);
+        contentContainer.removeEventListener('drop', this.handleDrop);
+        
+        contentContainer.addEventListener('dragover', this.handleDragOver);
+        contentContainer.addEventListener('drop', this.handleDrop);
+    }
+    
+    private handleDragOver = (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    private handleDrop = (e: DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const instructionType = e.dataTransfer!.getData('text/plain') as InstructionType;
+        const instructionId = e.dataTransfer!.getData('application/x-instruction-id');
+        const existingInstructionType = e.dataTransfer!.getData('application/x-instruction-type') as InstructionType;
+        
+        if (instructionType) {
+            // Adding new instruction from palette
+            const instruction = new Instruction(instructionType);
+            this.addInstruction(instruction);
+        } else if (instructionId && existingInstructionType) {
+            // Moving existing instruction into loop
+            const instruction = new Instruction(existingInstructionType);
+            this.addInstruction(instruction);
+            
+            // Notify parent to remove the original instruction
+            const removeEvent = new CustomEvent('remove-instruction', {
+                detail: { id: instructionId },
+                bubbles: true
+            });
+            this.element.dispatchEvent(removeEvent);
+        }
+    }
+
+    private setupEvents() {
+        // Add drag support for reordering
+        this.element.addEventListener('dragstart', (e: DragEvent) => {
+            e.dataTransfer!.setData('application/x-loop-id', this.id);
+            this.element.classList.add('dragging');
+        });
+
+        this.element.addEventListener('dragend', () => {
+            this.element.classList.remove('dragging');
+        });
+
+        // Add dragover and drop support for multipliers
+        this.endElement.addEventListener('dragover', (e: DragEvent) => {
+            const hasMultiplier = Array.from(e.dataTransfer!.types).indexOf('application/x-multiplier') !== -1;
+            if (hasMultiplier) {
+                e.preventDefault();
+                this.endElement.classList.add('multiplier-target');
+            }
+        });
+
+        this.endElement.addEventListener('dragleave', () => {
+            this.endElement.classList.remove('multiplier-target');
+        });
+
+        this.endElement.addEventListener('drop', (e: DragEvent) => {
+            e.preventDefault();
+            this.endElement.classList.remove('multiplier-target');
+            
+            const multiplierValue = e.dataTransfer!.getData('application/x-multiplier');
+            if (multiplierValue) {
+                this.setCount(parseInt(multiplierValue));
+            }
+        });
+    }
+}
+
 class Game {
     board: GameBoard;
-    program: Instruction[];
+    program: ProgramElement[];
     isRunning: boolean;
 
     constructor() {
@@ -433,12 +632,14 @@ class Game {
         // Control buttons
         document.getElementById('run-button')!.addEventListener('click', () => this.runProgram());
         document.getElementById('reset-button')!.addEventListener('click', () => this.reset());
+        document.getElementById('new-level-button')!.addEventListener('click', () => this.newLevel());
         document.getElementById('clear-button')!.addEventListener('click', () => this.clearProgram());
     }
 
     private setupDragAndDrop() {
         const instructionBlocks = document.querySelectorAll('.instruction-block');
         const multiplierBlocks = document.querySelectorAll('.multiplier-block');
+        const loopBlocks = document.querySelectorAll('.loop-block');
         const programContainer = document.getElementById('program-container')!;
 
         instructionBlocks.forEach(block => {
@@ -455,6 +656,12 @@ class Game {
             });
         });
 
+        loopBlocks.forEach(block => {
+            block.addEventListener('dragstart', (e: DragEvent) => {
+                e.dataTransfer!.setData('application/x-loop-create', 'true');
+            });
+        });
+
         programContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
         });
@@ -465,12 +672,26 @@ class Game {
             const instructionId = e.dataTransfer!.getData('application/x-instruction-id');
             const instructionType = e.dataTransfer!.getData('application/x-instruction-type') as InstructionType;
             const paletteType = e.dataTransfer!.getData('text/plain') as InstructionType;
+            const loopCreate = e.dataTransfer!.getData('application/x-loop-create');
+            const loopId = e.dataTransfer!.getData('application/x-loop-id');
             
             if (instructionId) {
                 // Reordering existing instruction
                 const insertIndex = this.getDropInsertIndex(e, programContainer);
-                this.removeInstructionById(instructionId);
+                this.removeElementById(instructionId);
                 this.addInstruction(instructionType, insertIndex > 0 ? insertIndex - 1 : 0);
+            } else if (loopId) {
+                // Reordering existing loop
+                const insertIndex = this.getDropInsertIndex(e, programContainer);
+                const loop = this.findElementById(loopId) as Loop;
+                if (loop) {
+                    this.removeElementById(loopId);
+                    this.addLoop(loop, insertIndex > 0 ? insertIndex - 1 : 0);
+                }
+            } else if (loopCreate) {
+                // Creating new loop
+                const insertIndex = this.getDropInsertIndex(e, programContainer);
+                this.addLoop(new Loop(), insertIndex);
             } else if (paletteType) {
                 // Adding new instruction from palette
                 const insertIndex = this.getDropInsertIndex(e, programContainer);
@@ -480,17 +701,35 @@ class Game {
 
         // Handle remove instruction events
         programContainer.addEventListener('remove-instruction', (e: CustomEvent) => {
-            this.removeInstructionById(e.detail.id);
+            this.removeElementById(e.detail.id);
+        });
+        
+        // Handle removing instructions from loops
+        programContainer.addEventListener('remove-instruction', (e: CustomEvent) => {
+            // Check if the instruction is inside a loop
+            this.program.forEach(element => {
+                if (element.elementType === ProgramElementType.LOOP) {
+                    const loop = element as Loop;
+                    loop.removeInstruction(e.detail.id);
+                }
+            });
         });
     }
 
     private addInstruction(type: InstructionType, insertIndex?: number) {
         const instruction = new Instruction(type);
-        
+        this.addProgramElement(instruction, insertIndex);
+    }
+
+    private addLoop(loop: Loop, insertIndex?: number) {
+        this.addProgramElement(loop, insertIndex);
+    }
+
+    private addProgramElement(element: ProgramElement, insertIndex?: number) {
         if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= this.program.length) {
-            this.program.splice(insertIndex, 0, instruction);
+            this.program.splice(insertIndex, 0, element);
         } else {
-            this.program.push(instruction);
+            this.program.push(element);
         }
         
         this.rebuildProgramDisplay();
@@ -503,18 +742,22 @@ class Game {
         if (this.program.length === 0) {
             programContainer.innerHTML = '<div class="drop-zone">Drop instructions here</div>';
         } else {
-            this.program.forEach(instruction => {
-                programContainer.appendChild(instruction.element);
+            this.program.forEach(element => {
+                programContainer.appendChild(element.element);
             });
         }
     }
 
-    private removeInstructionById(id: string) {
-        const index = this.program.findIndex(instruction => instruction.id === id);
+    private removeElementById(id: string) {
+        const index = this.program.findIndex(element => element.id === id);
         if (index !== -1) {
             this.program.splice(index, 1);
             this.rebuildProgramDisplay();
         }
+    }
+
+    private findElementById(id: string): ProgramElement | null {
+        return this.program.find(element => element.id === id) || null;
     }
 
     private getDropInsertIndex(e: DragEvent, container: HTMLElement): number {
@@ -550,24 +793,40 @@ class Game {
         runButton.disabled = true;
         runButton.textContent = '⏸ Running...';
 
-        for (const instruction of this.program) {
-            instruction.element.classList.add('executing');
-            
-            // Execute instruction multiple times based on count
-            for (let i = 0; i < instruction.count; i++) {
-                await this.executeInstruction(instruction.type);
-                if (i < instruction.count - 1) {
-                    await this.delay(400); // Shorter delay between repeated actions
-                }
-            }
-            
-            await this.delay(800);
-            instruction.element.classList.remove('executing');
-        }
+        await this.executeProgram(this.program);
 
         this.isRunning = false;
         runButton.disabled = false;
         runButton.textContent = '▶ Run Program';
+    }
+
+    private async executeProgram(elements: ProgramElement[]) {
+        for (const element of elements) {
+            element.element.classList.add('executing');
+            
+            if (element.elementType === ProgramElementType.INSTRUCTION) {
+                const instruction = element as Instruction;
+                // Execute instruction multiple times based on count
+                for (let i = 0; i < instruction.count; i++) {
+                    await this.executeInstruction(instruction.type);
+                    if (i < instruction.count - 1) {
+                        await this.delay(400); // Shorter delay between repeated actions
+                    }
+                }
+            } else if (element.elementType === ProgramElementType.LOOP) {
+                const loop = element as Loop;
+                // Execute loop multiple times based on count
+                for (let i = 0; i < loop.count; i++) {
+                    await this.executeProgram(loop.instructions);
+                    if (i < loop.count - 1) {
+                        await this.delay(400); // Shorter delay between loop iterations
+                    }
+                }
+            }
+            
+            await this.delay(800);
+            element.element.classList.remove('executing');
+        }
     }
 
     private async executeInstruction(type: InstructionType) {
@@ -618,8 +877,11 @@ class Game {
 
     private reset() {
         this.board.reset();
+    }
+
+    private newLevel() {
+        this.board.newLevel();
         this.clearProgram();
-        this.showMessage('Game reset! Ready to play! 🎮');
     }
 }
 

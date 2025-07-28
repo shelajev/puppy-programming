@@ -13,6 +13,7 @@
             <div class="controls">
                 <button id="run-button">▶ Run Program</button>
                 <button id="reset-button">🔄 Reset</button>
+                <button id="new-level-button">🎲 New Level</button>
                 <button id="clear-button">🗑 Clear Program</button>
             </div>
         </div>
@@ -36,22 +37,35 @@
                         </div>
                     </div>
                     
-                    <h3>Multipliers</h3>
-                    <div class="multiplier-blocks">
-                        <div class="multiplier-block" draggable="true" data-multiplier="1">
-                            ×1
+                    <div class="control-blocks-container">
+                        <div class="control-section">
+                            <h4>Multipliers</h4>
+                            <div class="multiplier-blocks">
+                                <div class="multiplier-block" draggable="true" data-multiplier="1">
+                                    ×1
+                                </div>
+                                <div class="multiplier-block" draggable="true" data-multiplier="2">
+                                    ×2
+                                </div>
+                                <div class="multiplier-block" draggable="true" data-multiplier="3">
+                                    ×3
+                                </div>
+                                <div class="multiplier-block" draggable="true" data-multiplier="4">
+                                    ×4
+                                </div>
+                                <div class="multiplier-block" draggable="true" data-multiplier="5">
+                                    ×5
+                                </div>
+                            </div>
                         </div>
-                        <div class="multiplier-block" draggable="true" data-multiplier="2">
-                            ×2
-                        </div>
-                        <div class="multiplier-block" draggable="true" data-multiplier="3">
-                            ×3
-                        </div>
-                        <div class="multiplier-block" draggable="true" data-multiplier="4">
-                            ×4
-                        </div>
-                        <div class="multiplier-block" draggable="true" data-multiplier="5">
-                            ×5
+                        
+                        <div class="control-section">
+                            <h4>Loop</h4>
+                            <div class="loop-blocks">
+                                <div class="loop-block" draggable="true" data-loop="true">
+                                    { }
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

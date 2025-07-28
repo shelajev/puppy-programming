@@ -55,6 +55,11 @@ var InstructionType;
     InstructionType["TURN_RIGHT"] = "turnRight";
     InstructionType["JUMP"] = "jump";
 })(InstructionType || (InstructionType = {}));
+var ProgramElementType;
+(function (ProgramElementType) {
+    ProgramElementType["INSTRUCTION"] = "instruction";
+    ProgramElementType["LOOP"] = "loop";
+})(ProgramElementType || (ProgramElementType = {}));
 var Cell = /** @class */ (function () {
     function Cell(type) {
         if (type === void 0) { type = CellType.EMPTY; }
@@ -287,6 +292,26 @@ var GameBoard = /** @class */ (function () {
         }, 3000);
     };
     GameBoard.prototype.reset = function () {
+        // Clear puppy from current position first
+        if (this.isValidPosition(this.puppy.position.x, this.puppy.position.y)) {
+            var currentCell = this.cells[this.puppy.position.y][this.puppy.position.x];
+            if (currentCell.type === CellType.PUPPY) {
+                currentCell.setType(CellType.EMPTY);
+            }
+        }
+        // Reset puppy to starting position
+        this.puppy = new Puppy(0, 0);
+        this.placePuppy(0, 0);
+        this.showMessage('Game reset! Ready to play! 🎮');
+    };
+    GameBoard.prototype.newLevel = function () {
+        // Generate new seed for a fresh level
+        this.seed = Math.floor(Math.random() * 1000000);
+        this.random = new SeededRandom(this.seed);
+        // Update URL with new seed
+        var newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('seed', this.seed.toString());
+        window.history.replaceState({}, '', newUrl);
         // Clear all cells
         for (var y = 0; y < this.height; y++) {
             for (var x = 0; x < this.width; x++) {
@@ -297,6 +322,7 @@ var GameBoard = /** @class */ (function () {
         this.puppy = new Puppy(0, 0);
         this.setupLevel();
         this.updateSeedDisplay();
+        this.showMessage('New level generated! 🎲');
     };
     GameBoard.prototype.updatePuppyDisplay = function () {
         var _a = this.puppy.position, x = _a.x, y = _a.y;
@@ -309,6 +335,7 @@ var GameBoard = /** @class */ (function () {
 var Instruction = /** @class */ (function () {
     function Instruction(type, count) {
         if (count === void 0) { count = 1; }
+        this.elementType = ProgramElementType.INSTRUCTION;
         this.type = type;
         this.count = count;
         this.id = Math.random().toString(36).substr(2, 9);
@@ -378,6 +405,142 @@ var Instruction = /** @class */ (function () {
     };
     return Instruction;
 }());
+var Loop = /** @class */ (function () {
+    function Loop(count) {
+        if (count === void 0) { count = 1; }
+        var _this = this;
+        this.elementType = ProgramElementType.LOOP;
+        this.handleDragOver = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        this.handleDrop = function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var instructionType = e.dataTransfer.getData('text/plain');
+            var instructionId = e.dataTransfer.getData('application/x-instruction-id');
+            var existingInstructionType = e.dataTransfer.getData('application/x-instruction-type');
+            if (instructionType) {
+                // Adding new instruction from palette
+                var instruction = new Instruction(instructionType);
+                _this.addInstruction(instruction);
+            }
+            else if (instructionId && existingInstructionType) {
+                // Moving existing instruction into loop
+                var instruction = new Instruction(existingInstructionType);
+                _this.addInstruction(instruction);
+                // Notify parent to remove the original instruction
+                var removeEvent = new CustomEvent('remove-instruction', {
+                    detail: { id: instructionId },
+                    bubbles: true
+                });
+                _this.element.dispatchEvent(removeEvent);
+            }
+        };
+        this.count = count;
+        this.id = Math.random().toString(36).substr(2, 9);
+        this.instructions = [];
+        this.element = document.createElement('div');
+        this.element.className = 'program-loop';
+        this.setupLoop();
+        this.setupEvents();
+    }
+    Loop.prototype.setupLoop = function () {
+        this.startElement = document.createElement('div');
+        this.startElement.className = 'loop-start';
+        this.startElement.textContent = '{';
+        this.contentContainer = document.createElement('div');
+        this.contentContainer.className = 'loop-content';
+        this.endElement = document.createElement('div');
+        this.endElement.className = 'loop-end';
+        this.updateEndDisplay();
+        this.element.appendChild(this.startElement);
+        this.element.appendChild(this.contentContainer);
+        this.element.appendChild(this.endElement);
+        // Initialize with empty drop zone
+        this.rebuildContent();
+    };
+    Loop.prototype.setCount = function (count) {
+        this.count = count;
+        this.updateEndDisplay();
+    };
+    Loop.prototype.updateEndDisplay = function () {
+        var countDisplay = this.count > 1 ? " \u00D7".concat(this.count) : '';
+        this.endElement.textContent = "}".concat(countDisplay);
+    };
+    Loop.prototype.addInstruction = function (instruction, index) {
+        if (index !== undefined && index >= 0 && index <= this.instructions.length) {
+            this.instructions.splice(index, 0, instruction);
+        }
+        else {
+            this.instructions.push(instruction);
+        }
+        this.rebuildContent();
+    };
+    Loop.prototype.removeInstruction = function (id) {
+        var index = this.instructions.findIndex(function (inst) { return inst.id === id; });
+        if (index !== -1) {
+            this.instructions.splice(index, 1);
+            this.rebuildContent();
+        }
+    };
+    Loop.prototype.rebuildContent = function () {
+        var _this = this;
+        this.contentContainer.innerHTML = '';
+        if (this.instructions.length === 0) {
+            var dropZone = document.createElement('div');
+            dropZone.className = 'loop-drop-zone';
+            dropZone.textContent = 'Drop instructions here';
+            this.contentContainer.appendChild(dropZone);
+        }
+        else {
+            this.instructions.forEach(function (instruction) {
+                _this.contentContainer.appendChild(instruction.element);
+            });
+        }
+        // Re-setup drag and drop for the content container after rebuild
+        this.setupContentEvents();
+    };
+    Loop.prototype.setupContentEvents = function () {
+        // Remove any existing event listeners and re-add them
+        var contentContainer = this.contentContainer;
+        contentContainer.removeEventListener('dragover', this.handleDragOver);
+        contentContainer.removeEventListener('drop', this.handleDrop);
+        contentContainer.addEventListener('dragover', this.handleDragOver);
+        contentContainer.addEventListener('drop', this.handleDrop);
+    };
+    Loop.prototype.setupEvents = function () {
+        var _this = this;
+        // Add drag support for reordering
+        this.element.addEventListener('dragstart', function (e) {
+            e.dataTransfer.setData('application/x-loop-id', _this.id);
+            _this.element.classList.add('dragging');
+        });
+        this.element.addEventListener('dragend', function () {
+            _this.element.classList.remove('dragging');
+        });
+        // Add dragover and drop support for multipliers
+        this.endElement.addEventListener('dragover', function (e) {
+            var hasMultiplier = Array.from(e.dataTransfer.types).indexOf('application/x-multiplier') !== -1;
+            if (hasMultiplier) {
+                e.preventDefault();
+                _this.endElement.classList.add('multiplier-target');
+            }
+        });
+        this.endElement.addEventListener('dragleave', function () {
+            _this.endElement.classList.remove('multiplier-target');
+        });
+        this.endElement.addEventListener('drop', function (e) {
+            e.preventDefault();
+            _this.endElement.classList.remove('multiplier-target');
+            var multiplierValue = e.dataTransfer.getData('application/x-multiplier');
+            if (multiplierValue) {
+                _this.setCount(parseInt(multiplierValue));
+            }
+        });
+    };
+    return Loop;
+}());
 var Game = /** @class */ (function () {
     function Game() {
         this.board = new GameBoard();
@@ -392,12 +555,14 @@ var Game = /** @class */ (function () {
         // Control buttons
         document.getElementById('run-button').addEventListener('click', function () { return _this.runProgram(); });
         document.getElementById('reset-button').addEventListener('click', function () { return _this.reset(); });
+        document.getElementById('new-level-button').addEventListener('click', function () { return _this.newLevel(); });
         document.getElementById('clear-button').addEventListener('click', function () { return _this.clearProgram(); });
     };
     Game.prototype.setupDragAndDrop = function () {
         var _this = this;
         var instructionBlocks = document.querySelectorAll('.instruction-block');
         var multiplierBlocks = document.querySelectorAll('.multiplier-block');
+        var loopBlocks = document.querySelectorAll('.loop-block');
         var programContainer = document.getElementById('program-container');
         instructionBlocks.forEach(function (block) {
             block.addEventListener('dragstart', function (e) {
@@ -411,6 +576,11 @@ var Game = /** @class */ (function () {
                 e.dataTransfer.setData('application/x-multiplier', target.dataset.multiplier);
             });
         });
+        loopBlocks.forEach(function (block) {
+            block.addEventListener('dragstart', function (e) {
+                e.dataTransfer.setData('application/x-loop-create', 'true');
+            });
+        });
         programContainer.addEventListener('dragover', function (e) {
             e.preventDefault();
         });
@@ -419,11 +589,27 @@ var Game = /** @class */ (function () {
             var instructionId = e.dataTransfer.getData('application/x-instruction-id');
             var instructionType = e.dataTransfer.getData('application/x-instruction-type');
             var paletteType = e.dataTransfer.getData('text/plain');
+            var loopCreate = e.dataTransfer.getData('application/x-loop-create');
+            var loopId = e.dataTransfer.getData('application/x-loop-id');
             if (instructionId) {
                 // Reordering existing instruction
                 var insertIndex = _this.getDropInsertIndex(e, programContainer);
-                _this.removeInstructionById(instructionId);
+                _this.removeElementById(instructionId);
                 _this.addInstruction(instructionType, insertIndex > 0 ? insertIndex - 1 : 0);
+            }
+            else if (loopId) {
+                // Reordering existing loop
+                var insertIndex = _this.getDropInsertIndex(e, programContainer);
+                var loop = _this.findElementById(loopId);
+                if (loop) {
+                    _this.removeElementById(loopId);
+                    _this.addLoop(loop, insertIndex > 0 ? insertIndex - 1 : 0);
+                }
+            }
+            else if (loopCreate) {
+                // Creating new loop
+                var insertIndex = _this.getDropInsertIndex(e, programContainer);
+                _this.addLoop(new Loop(), insertIndex);
             }
             else if (paletteType) {
                 // Adding new instruction from palette
@@ -433,16 +619,32 @@ var Game = /** @class */ (function () {
         });
         // Handle remove instruction events
         programContainer.addEventListener('remove-instruction', function (e) {
-            _this.removeInstructionById(e.detail.id);
+            _this.removeElementById(e.detail.id);
+        });
+        // Handle removing instructions from loops
+        programContainer.addEventListener('remove-instruction', function (e) {
+            // Check if the instruction is inside a loop
+            _this.program.forEach(function (element) {
+                if (element.elementType === ProgramElementType.LOOP) {
+                    var loop = element;
+                    loop.removeInstruction(e.detail.id);
+                }
+            });
         });
     };
     Game.prototype.addInstruction = function (type, insertIndex) {
         var instruction = new Instruction(type);
+        this.addProgramElement(instruction, insertIndex);
+    };
+    Game.prototype.addLoop = function (loop, insertIndex) {
+        this.addProgramElement(loop, insertIndex);
+    };
+    Game.prototype.addProgramElement = function (element, insertIndex) {
         if (insertIndex !== undefined && insertIndex >= 0 && insertIndex <= this.program.length) {
-            this.program.splice(insertIndex, 0, instruction);
+            this.program.splice(insertIndex, 0, element);
         }
         else {
-            this.program.push(instruction);
+            this.program.push(element);
         }
         this.rebuildProgramDisplay();
     };
@@ -453,17 +655,20 @@ var Game = /** @class */ (function () {
             programContainer.innerHTML = '<div class="drop-zone">Drop instructions here</div>';
         }
         else {
-            this.program.forEach(function (instruction) {
-                programContainer.appendChild(instruction.element);
+            this.program.forEach(function (element) {
+                programContainer.appendChild(element.element);
             });
         }
     };
-    Game.prototype.removeInstructionById = function (id) {
-        var index = this.program.findIndex(function (instruction) { return instruction.id === id; });
+    Game.prototype.removeElementById = function (id) {
+        var index = this.program.findIndex(function (element) { return element.id === id; });
         if (index !== -1) {
             this.program.splice(index, 1);
             this.rebuildProgramDisplay();
         }
+    };
+    Game.prototype.findElementById = function (id) {
+        return this.program.find(function (element) { return element.id === id; }) || null;
     };
     Game.prototype.getDropInsertIndex = function (e, container) {
         var afterElement = this.getDragAfterElement(container, e.clientY);
@@ -490,9 +695,9 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.runProgram = function () {
         return __awaiter(this, void 0, void 0, function () {
-            var runButton, _i, _a, instruction, i;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
+            var runButton;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
                     case 0:
                         if (this.isRunning || this.program.length === 0)
                             return [2 /*return*/];
@@ -500,40 +705,74 @@ var Game = /** @class */ (function () {
                         runButton = document.getElementById('run-button');
                         runButton.disabled = true;
                         runButton.textContent = '⏸ Running...';
-                        _i = 0, _a = this.program;
-                        _b.label = 1;
+                        return [4 /*yield*/, this.executeProgram(this.program)];
                     case 1:
-                        if (!(_i < _a.length)) return [3 /*break*/, 9];
-                        instruction = _a[_i];
-                        instruction.element.classList.add('executing');
-                        i = 0;
-                        _b.label = 2;
-                    case 2:
-                        if (!(i < instruction.count)) return [3 /*break*/, 6];
-                        return [4 /*yield*/, this.executeInstruction(instruction.type)];
-                    case 3:
-                        _b.sent();
-                        if (!(i < instruction.count - 1)) return [3 /*break*/, 5];
-                        return [4 /*yield*/, this.delay(400)];
-                    case 4:
-                        _b.sent(); // Shorter delay between repeated actions
-                        _b.label = 5;
-                    case 5:
-                        i++;
-                        return [3 /*break*/, 2];
-                    case 6: return [4 /*yield*/, this.delay(800)];
-                    case 7:
-                        _b.sent();
-                        instruction.element.classList.remove('executing');
-                        _b.label = 8;
-                    case 8:
-                        _i++;
-                        return [3 /*break*/, 1];
-                    case 9:
+                        _a.sent();
                         this.isRunning = false;
                         runButton.disabled = false;
                         runButton.textContent = '▶ Run Program';
                         return [2 /*return*/];
+                }
+            });
+        });
+    };
+    Game.prototype.executeProgram = function (elements) {
+        return __awaiter(this, void 0, void 0, function () {
+            var _i, elements_1, element, instruction, i, loop, i;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        _i = 0, elements_1 = elements;
+                        _a.label = 1;
+                    case 1:
+                        if (!(_i < elements_1.length)) return [3 /*break*/, 15];
+                        element = elements_1[_i];
+                        element.element.classList.add('executing');
+                        if (!(element.elementType === ProgramElementType.INSTRUCTION)) return [3 /*break*/, 7];
+                        instruction = element;
+                        i = 0;
+                        _a.label = 2;
+                    case 2:
+                        if (!(i < instruction.count)) return [3 /*break*/, 6];
+                        return [4 /*yield*/, this.executeInstruction(instruction.type)];
+                    case 3:
+                        _a.sent();
+                        if (!(i < instruction.count - 1)) return [3 /*break*/, 5];
+                        return [4 /*yield*/, this.delay(400)];
+                    case 4:
+                        _a.sent(); // Shorter delay between repeated actions
+                        _a.label = 5;
+                    case 5:
+                        i++;
+                        return [3 /*break*/, 2];
+                    case 6: return [3 /*break*/, 12];
+                    case 7:
+                        if (!(element.elementType === ProgramElementType.LOOP)) return [3 /*break*/, 12];
+                        loop = element;
+                        i = 0;
+                        _a.label = 8;
+                    case 8:
+                        if (!(i < loop.count)) return [3 /*break*/, 12];
+                        return [4 /*yield*/, this.executeProgram(loop.instructions)];
+                    case 9:
+                        _a.sent();
+                        if (!(i < loop.count - 1)) return [3 /*break*/, 11];
+                        return [4 /*yield*/, this.delay(400)];
+                    case 10:
+                        _a.sent(); // Shorter delay between loop iterations
+                        _a.label = 11;
+                    case 11:
+                        i++;
+                        return [3 /*break*/, 8];
+                    case 12: return [4 /*yield*/, this.delay(800)];
+                    case 13:
+                        _a.sent();
+                        element.element.classList.remove('executing');
+                        _a.label = 14;
+                    case 14:
+                        _i++;
+                        return [3 /*break*/, 1];
+                    case 15: return [2 /*return*/];
                 }
             });
         });
@@ -585,8 +824,10 @@ var Game = /** @class */ (function () {
     };
     Game.prototype.reset = function () {
         this.board.reset();
+    };
+    Game.prototype.newLevel = function () {
+        this.board.newLevel();
         this.clearProgram();
-        this.showMessage('Game reset! Ready to play! 🎮');
     };
     return Game;
 }());
